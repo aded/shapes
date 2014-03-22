@@ -6,10 +6,10 @@ import (
 	"image/color"
 	"image/draw"
 
+	"github.com/aded/shapes"
 	"github.com/remogatto/imagetest"
 	"github.com/remogatto/mandala/test/src/testlib"
 	gl "github.com/remogatto/opengles2"
-	"github.com/remogatto/shapes"
 )
 
 const (
@@ -396,6 +396,54 @@ func (t *TestSuite) TestGroup() {
 			panic(err)
 		}
 		b3.MoveTo(float32(w/2), 0)
+
+		group.AttachToWorld(world)
+		gl.Clear(gl.COLOR_BUFFER_BIT)
+		group.Draw()
+
+		t.testDraw <- testlib.Screenshot(t.renderState.window)
+		t.renderState.window.SwapBuffers()
+	}
+	distance, exp, act, err := testlib.TestImage(filename, <-t.testDraw, imagetest.Center)
+	if err != nil {
+		panic(err)
+	}
+	t.True(distance < distanceThreshold, distanceError(distance, filename))
+	if t.Failed() {
+		saveExpAct(t.outputPath, "failed_"+filename, exp, act)
+	}
+}
+
+func (t *TestSuite) TestGroupTranslated() {
+	filename := "expected_group_translated_20_15.png"
+	t.rlControl.drawFunc <- func() {
+		w, h := t.renderState.window.GetSize()
+		world := newWorld(w, h)
+
+		// Create first group, 2 small boxes
+		group1 := shapes.NewGroup()
+		b1 := shapes.NewBox(t.renderState.boxProgram, 20, 20)
+		b1.MoveTo(30, 40)
+		b2 := shapes.NewBox(t.renderState.boxProgram, 50, 50)
+		b2.MoveTo(45, -25)
+		b2.Rotate(20.0)
+		group1.Add("b1", b1)
+		group1.Add("b2", b2)
+
+		// Create the main group
+		group := shapes.NewGroup()
+		group.Add("g1", group1)
+		group.Add("b3", shapes.NewBox(t.renderState.boxProgram, 100, 100))
+
+		b3, err := group.Child("b3")
+		if err != nil {
+			panic(err)
+		}
+		b3.MoveTo(float32(w/2), 0)
+
+		// Translate by (20, 15)
+		cx, cy := group.Center()
+		group.MoveTo(cx+20, cy+15)
 
 		group.AttachToWorld(world)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
