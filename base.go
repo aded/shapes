@@ -56,10 +56,16 @@ type Base struct {
 }
 
 // Rotate the shape around its center, by the given angle in degrees.
-func (b *Base) Rotate(angle float32) {
-	// axis := mathgl.Vec3f{0, 0, 0}
+func (b *Base) Rotate(angle float32, p ...mathgl.Vec2f) {
+	// axis := mathgl.Vec3f{0, 0, -1}
 	// b.modelMatrix = mathgl.Translate3D(b.x, b.y, 0).Mul4(mathgl.HomogRotate3D(angle, axis))
-	b.modelMatrix = mathgl.Translate3D(b.x, b.y, 0).Mul4(mathgl.HomogRotate3DZ(angle))
+	t := mathgl.Translate3D(0, 0, 0)
+	tInv := mathgl.Translate3D(0, 0, 0)
+	if len(p) > 0 {
+		t = mathgl.Translate3D(p[0][0], p[0][1], 0)
+		tInv = mathgl.Translate3D(-p[0][0], -p[0][1], 0)
+	}
+	b.modelMatrix = mathgl.Translate3D(b.x, b.y, 0).Mul4(tInv).Mul4(mathgl.HomogRotate3DZ(angle)).Mul4(t)
 	b.angle = angle
 }
 

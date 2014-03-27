@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image"
 	"sync"
+
+	"github.com/remogatto/mathgl"
 )
 
 // Group implements Shape too.
@@ -84,10 +86,18 @@ func (g *Group) Draw() {
 	}
 }
 
-func (g *Group) Rotate(angle float32) {
-	// cx, cy := g.Center()
+func (g *Group) Rotate(angle float32, p ...mathgl.Vec2f) {
+	var pivot mathgl.Vec2f
+
+	if len(p) > 0 {
+		pivot = p[0]
+	} else {
+		cx, cy := g.Center()
+		pivot = mathgl.Vec2f{cx, cy}
+	}
+
 	for _, s := range g.children {
-		s.Rotate(angle)
+		s.Rotate(angle, pivot)
 	}
 }
 

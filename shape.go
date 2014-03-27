@@ -1,10 +1,14 @@
 package shapes
 
-import "image"
+import (
+	"image"
+
+	"github.com/remogatto/mathgl"
+)
 
 type Shape interface {
 	// Rotate shape
-	Rotate(angle float32)
+	Rotate(angle float32, p ...mathgl.Vec2f)
 
 	// Scale shape
 	Scale(sx, sy float32)
