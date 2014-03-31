@@ -2,9 +2,7 @@ package testlib
 
 import (
 	"fmt"
-	"image"
 	"image/color"
-	"image/draw"
 
 	"github.com/aded/shapes"
 	"github.com/remogatto/imagetest"
@@ -69,7 +67,7 @@ func (t *TestSuite) TestShape() {
 
 	// String representation
 
-	t.Equal("(10.000000,20.000000)-(10.000000,20.000000)", box.String())
+	t.Equal("(5,10)-(15,30)", box.String())
 }
 
 func (t *TestSuite) TestBox() {
@@ -241,21 +239,15 @@ func (t *TestSuite) TestTexturedBox() {
 	t.rlControl.drawFunc <- func() {
 		w, h := t.renderState.window.GetSize()
 		world := newWorld(w, h)
+
 		// Create a box
 		box := shapes.NewBox(t.renderState.boxProgram, 100, 100)
 		box.AttachToWorld(world)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 		box.MoveTo(float32(w/2), 0)
 
-		texImg, err := loadImageResource(texFilename)
-		if err != nil {
-			panic(err)
-		}
-
-		// Convert to RGBA
-		b := texImg.Bounds()
-		rgbaImage := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-		draw.Draw(rgbaImage, rgbaImage.Bounds(), texImg, b.Min, draw.Src)
+		// Add an image as a texture
+		gopherTexture := world.addImageAsTexture(texFilename)
 
 		texCoords := []float32{
 			0, 0,
@@ -264,7 +256,7 @@ func (t *TestSuite) TestTexturedBox() {
 			1, 1,
 		}
 
-		box.AttachTexture(rgbaImage, texCoords)
+		box.SetTexture(gopherTexture, texCoords)
 
 		box.Draw()
 		t.testDraw <- testlib.Screenshot(t.renderState.window)
@@ -291,23 +283,15 @@ func (t *TestSuite) TestTexturedRotatedBox() {
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 		box.MoveTo(float32(w/2), 0)
 
-		texImg, err := loadImageResource(texFilename)
-		if err != nil {
-			panic(err)
-		}
-
-		// Convert to RGBA
-		b := texImg.Bounds()
-		rgbaImage := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-		draw.Draw(rgbaImage, rgbaImage.Bounds(), texImg, b.Min, draw.Src)
-
+		// Add an image as a texture
+		gopherTexture := world.addImageAsTexture(texFilename)
 		texCoords := []float32{
 			0, 0,
 			1, 0,
 			0, 1,
 			1, 1,
 		}
-		box.AttachTexture(rgbaImage, texCoords)
+		box.SetTexture(gopherTexture, texCoords)
 
 		box.Rotate(20.0)
 
@@ -330,21 +314,15 @@ func (t *TestSuite) TestPartialTextureRotatedBox() {
 	t.rlControl.drawFunc <- func() {
 		w, h := t.renderState.window.GetSize()
 		world := newWorld(w, h)
+
 		// Create a box
 		box := shapes.NewBox(t.renderState.boxProgram, 100, 100)
 		box.AttachToWorld(world)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 		box.MoveTo(float32(w/2), 0)
 
-		texImg, err := loadImageResource(texFilename)
-		if err != nil {
-			panic(err)
-		}
-
-		// Convert to RGBA
-		b := texImg.Bounds()
-		rgbaImage := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-		draw.Draw(rgbaImage, rgbaImage.Bounds(), texImg, b.Min, draw.Src)
+		// Add an image as a texture
+		gopherTexture := world.addImageAsTexture(texFilename)
 
 		texCoords := []float32{
 			0, 0,
@@ -352,7 +330,7 @@ func (t *TestSuite) TestPartialTextureRotatedBox() {
 			0, 0.5,
 			0.5, 0.5,
 		}
-		box.AttachTexture(rgbaImage, texCoords)
+		box.SetTexture(gopherTexture, texCoords)
 
 		box.Rotate(20.0)
 
@@ -383,18 +361,16 @@ func (t *TestSuite) TestGroup() {
 		b2 := shapes.NewBox(t.renderState.boxProgram, 50, 50)
 		b2.MoveTo(45, -25)
 		b2.Rotate(20.0)
-		group1.Add("b1", b1)
-		group1.Add("b2", b2)
+		group1.Append(b1)
+		group1.Append(b2)
 
 		// Create the main group
 		group := shapes.NewGroup()
-		group.Add("g1", group1)
-		group.Add("b3", shapes.NewBox(t.renderState.boxProgram, 100, 100))
+		group.Append(group1)
+		group.Append(shapes.NewBox(t.renderState.boxProgram, 100, 100))
 
-		b3, err := group.Child("b3")
-		if err != nil {
-			panic(err)
-		}
+		// Get the second element of the group
+		b3 := group.GetAt(1)
 		b3.MoveTo(float32(w/2), 0)
 
 		group.AttachToWorld(world)
@@ -426,20 +402,16 @@ func (t *TestSuite) TestGroupTranslated() {
 		b1.MoveTo(30, 40)
 		b2 := shapes.NewBox(t.renderState.boxProgram, 50, 50)
 		b2.MoveTo(45, -25)
-		b2.Rotate(20.0)
-		group1.Add("b1", b1)
-		group1.Add("b2", b2)
+		b2.Rotate(10.0)
+		group1.Append(b1)
+		group1.Append(b2)
 
 		// Create the main group
 		group := shapes.NewGroup()
-		group.Add("g1", group1)
-		group.Add("b3", shapes.NewBox(t.renderState.boxProgram, 100, 100))
-
-		b3, err := group.Child("b3")
-		if err != nil {
-			panic(err)
-		}
+		group.Append(group1)
+		b3 := shapes.NewBox(t.renderState.boxProgram, 100, 100)
 		b3.MoveTo(float32(w/2), 0)
+		group.Append(b3)
 
 		// Translate by (20, 15)
 		cx, cy := group.Center()
@@ -474,20 +446,16 @@ func (t *TestSuite) TestGroupRotated() {
 		b1.MoveTo(30, 40)
 		b2 := shapes.NewBox(t.renderState.boxProgram, 50, 50)
 		b2.MoveTo(45, -25)
-		b2.Rotate(20.0)
-		group1.Add("b1", b1)
-		group1.Add("b2", b2)
+		b2.Rotate(10.0)
+		group1.Append(b1)
+		group1.Append(b2)
 
 		// Create the main group
 		group := shapes.NewGroup()
-		group.Add("g1", group1)
-		group.Add("b3", shapes.NewBox(t.renderState.boxProgram, 100, 100))
-
-		b3, err := group.Child("b3")
-		if err != nil {
-			panic(err)
-		}
+		group.Append(group1)
+		b3 := shapes.NewBox(t.renderState.boxProgram, 100, 100)
 		b3.MoveTo(float32(w/2), 0)
+		group.Append(b3)
 
 		// Rotate by 25
 		group.Rotate(25.0)
@@ -506,6 +474,8 @@ func (t *TestSuite) TestGroupRotated() {
 	t.True(distance < distanceThreshold, distanceError(distance, filename))
 	if t.Failed() {
 		saveExpAct(t.outputPath, "failed_"+filename, exp, act)
+	} else {
+		saveExpAct(t.outputPath, "success_"+filename, exp, act)
 	}
 }
 

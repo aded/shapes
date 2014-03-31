@@ -1,16 +1,14 @@
 package shapes
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 
 	"github.com/remogatto/mathgl"
-	gl "github.com/remogatto/opengles2"
 	"github.com/remogatto/shaders"
 )
 
-// Base shape.
+// Base represent a basic structure for shapes.
 type Base struct {
 	// Vertices of the generic shape
 	vertices []float32
@@ -20,7 +18,7 @@ type Base struct {
 	modelMatrix mathgl.Mat4f
 	viewMatrix  mathgl.Mat4f
 
-	// Center
+	// Center of the shape
 	x, y float32
 
 	// Angle
@@ -28,13 +26,14 @@ type Base struct {
 
 	// Bounds
 	bounds image.Rectangle
-	// w, h float32
 
-	// Colors
+	// Color
 	color color.Color
-	// normalized RGBA color
+
+	// Normalized RGBA color
 	nColor [4]float32
-	// color matrix (four color component for each vertex)
+
+	// Color matrix (four color component for each vertex)
 	vColor []float32
 
 	// Texture
@@ -55,31 +54,45 @@ type Base struct {
 	textureId     uint32
 }
 
-// Rotate the shape around its center, by the given angle in degrees.
-func (b *Base) Rotate(angle float32, p ...mathgl.Vec2f) {
-	// axis := mathgl.Vec3f{0, 0, -1}
-	// b.modelMatrix = mathgl.Translate3D(b.x, b.y, 0).Mul4(mathgl.HomogRotate3D(angle, axis))
-	t := mathgl.Translate3D(0, 0, 0)
-	tInv := mathgl.Translate3D(0, 0, 0)
-	if len(p) > 0 {
-		t = mathgl.Translate3D(p[0][0], p[0][1], 0)
-		tInv = mathgl.Translate3D(-p[0][0], -p[0][1], 0)
-	}
-	b.modelMatrix = mathgl.Translate3D(b.x, b.y, 0).Mul4(tInv).Mul4(mathgl.HomogRotate3DZ(angle)).Mul4(t)
-	b.angle = angle
+// Rotates a shape by the given angle in degrees.
+func (b *Base) Rotate(angle float32) {
+	b.angle += angle
+	b.modelMatrix = mathgl.Translate3D(b.x, b.y, 0).Mul4(mathgl.HomogRotate3DZ(b.angle))
 }
 
-// Scale the shape relative to its center, by the given factors.
+// RotateAround rotates the shape around the given point, by the given
+// angle in degrees.
+func (b *Base) RotateAround(x, y, angle float32) {
+	b.angle += angle
+	dx, dy := x-b.x, y-b.y
+	b.modelMatrix = mathgl.Translate3D(x, y, 0).Mul4(mathgl.HomogRotate3DZ(b.angle))
+	b.modelMatrix = b.modelMatrix.Mul4(mathgl.Translate3D(-dx, -dy, 0))
+}
+
+// Scale scales the shape relative to its center, by the given
+// factors.
 func (b *Base) Scale(sx, sy float32) {
 	b.modelMatrix = mathgl.Translate3D(b.x, b.y, 0).Mul4(mathgl.Scale3D(sx, sy, 1.0))
+
 }
 
-// Move the shape by dx, dy
+// Move moves the shape by dx, dy.
+func (b *Base) Move(dx, dy float32) {
+	b.modelMatrix = b.modelMatrix.Mul4(mathgl.Translate3D(dx, dy, 0))
+	b.bounds = b.bounds.Add(image.Point{int(dx), int(dy)})
+	b.x, b.y = b.x+dx, b.y+dy
+}
+
+// MoveTo moves the shape in x, y position.
 func (b *Base) MoveTo(x, y float32) {
 	b.modelMatrix = mathgl.Translate3D(x, y, 0)
+	dx := x - b.x
+	dy := y - b.y
 	b.x, b.y = x, y
+	b.bounds = b.bounds.Add(image.Point{int(dx), int(dy)})
 }
 
+// Vertices returns the vertices slice.
 func (b *Base) Vertices() []float32 {
 	return b.vertices
 }
@@ -90,27 +103,33 @@ func (b *Base) Center() (float32, float32) {
 	return b.x, b.y
 }
 
+// SetCenter sets the coordinates of the center of the shape.
+func (b *Base) SetCenter(x, y float32) {
+	b.x, b.y = x, y
+}
+
 // Angle returns the current angle of the shape in degrees.
 func (b *Base) Angle() float32 {
 	return b.angle
 }
 
+// Bounds returns the bounds of the shape as a Rectangle.
 func (b *Base) Bounds() image.Rectangle {
-	// return b.w, b.h
 	return b.bounds
 }
 
-// Get the color of the shape.
+// Color returns the color of the shape.
 func (b *Base) Color() color.Color {
 	return b.color
 }
 
-// Get the color as a normalized float32 array.
+// NColor returns the color of the shape as a normalized float32
+// array.
 func (b *Base) NColor() [4]float32 {
 	return b.nColor
 }
 
-// Set the color of the shape.
+// SetColor sets the color of the shape.
 func (s *Base) SetColor(c color.Color) {
 
 	s.color = c
@@ -135,30 +154,23 @@ func (s *Base) SetColor(c color.Color) {
 	}
 }
 
-// AttachToWorld fills projection and view matrices.
+// AttachToWorld fills projection and view matrices with world's
+// matrices.
 func (b *Base) AttachToWorld(world World) {
 	b.projMatrix = world.Projection()
 	b.viewMatrix = world.View()
 }
 
-// Binds a texture to the shape.
-func (b *Base) AttachTexture(img *image.RGBA, texCoords []float32) error {
-
-	w, h := gl.Sizei(img.Bounds().Dx()), gl.Sizei(img.Bounds().Dy())
+// SetTexture sets a texture for the shape. Texture argument is an
+// uint32 value returned by the OpenGL context. It's a client-code
+// responsibility to provide that value.
+func (b *Base) SetTexture(texture uint32, texCoords []float32) error {
 	b.texCoords = texCoords
-
-	gl.GenTextures(1, &b.texBuffer)
-	gl.BindTexture(gl.TEXTURE_2D, b.texBuffer)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Void(&img.Pix[0]))
-
+	b.texBuffer = texture
 	return nil
 }
 
-// String return a string representation of the shape in the form
-// "(cx, cy), (w, h)".
+// String returns a string representation of the shape.
 func (b *Base) String() string {
-	size := b.bounds.Size()
-	return fmt.Sprintf("(%f,%f)-(%f,%f)", b.x, b.y, float32(size.X), float32(size.Y))
+	return b.bounds.String()
 }
